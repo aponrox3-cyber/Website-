@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="/stylesheets/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap.min.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <script async defer src="https://buttons.github.io/buttons.js"></script>
+  </head>
+  <body>
+    {{{body}}}
+<script>
+  var numberOfFiles = 0;
+  const downloadWebsite = document.getElementsByClassName('btn-success')[0];
+  const downloadBtn = document.getElementById('download');
+  const websiteInput = document.getElementById('website');
+  const progressBar = document.getElementById('progress');
+  const filesLine = document.getElementById('nFilesP');
+  const filesCount = document.getElementById('nFiles');
+  const log = document.getElementById('log');
+
+  // A per-browser random token names the channel this page listens on.
+  function generateToken(n) {
+    var chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    var bytes = new Uint32Array(n);
+    (window.crypto || window.msCrypto).getRandomValues(bytes);
+    var token = '';
+    for (var i = 0; i < n; i++) token += chars[bytes[i] % chars.length];
+    return token;
+  }
+
+  function getToken() {
+    var token = null;
+    try { token = localStorage.getItem('token'); } catch (e) { /* storage blocked */ }
+    // Tokens made by older versions may not pass the server's check; replace them.
+    if (!token || !/^[A-Za-z0-9]{16,64}$/.test(token)) {
+      token = generateToken(20);
+      try { localStorage.setItem('token', token); } catch (e) { /* keep in memory */ }
+    }
+    return token;
+  }
+  const token = getToken();
+
+  function showError(message) {
+    progressBar.hidden = true;
+    log.textContent = '';
+    const failure = document.createElement('strong');
+    failure.style.color = '#c0392b';
+    failure.textContent = message;
+    log.appendChild(failure);
+    downloadBtn.disabled = false;
+  }
+
+  var socket = io();
+
+  socket.on(token, (event) => {
+    if (event.error) { showError(event.error); return; }
+    if (typeof event.progress !== 'string') return;
+
+    progressBar.hidden = false;
+    if (event.progress === 'Converting') {
+      log.textContent = '100%! Compressing your website...';
+    } else if (event.progress === 'Completed') {
+      progressBar.hidden = true;
+      log.textContent = 'Compressing completed successfully !';
+      downloadWebsite.style.display = '';
+      downloadWebsite.onclick = function () {
+        window.location = '/sites/' + encodeURIComponent(event.file) + '.zip';
+      };
+      downloadBtn.disabled = false;
+    } else {
+      // one message can carry several lines
+      numberOfFiles += (event.progress.match(/200 OK/g) || []).length;
+      filesLine.hidden = false;
+      filesCount.textContent = numberOfFiles;
+      // textContent, not innerHTML: this text comes from the site being
+      // downloaded and must never be parsed as markup.
+      log.textContent = event.progress;
+    }
+  });
+
+  // The server stops a job when its connection drops, so say so instead of
+  // leaving the button disabled forever.
+  socket.on('disconnect', () => {
+    if (downloadBtn.disabled) showError('Connection to the server was lost. Please try again.');
+  });
+
+  function startDownload() {
+    var website = websiteInput.value;
+    if (!website.trim()) return;
+    numberOfFiles = 0;
+    filesCount.textContent = '0';
+    filesLine.hidden = true;
+    log.textContent = '';
+    downloadWebsite.style.display = 'none';
+    downloadBtn.disabled = true;
+    socket.emit('request', { token: token, website: website });
+  }
+  downloadBtn.onclick = startDownload;
+  document.getElementById('downloadForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    startDownload();
+  });
+</script>
+  </body>
+</html>
