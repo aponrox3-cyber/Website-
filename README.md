@@ -41,6 +41,17 @@ Download the complete source code of any website (including all assets) 🔨.
   - macOS: `brew install wget`
   - Windows: `winget install JernejSimoncic.Wget`
 
+## Quick start on Ubuntu 🐧
+
+```
+git clone https://github.com/aponrox3-cyber/Website-.git
+cd Website-
+bash setup-ubuntu.sh        # installs wget, Node.js, dependencies and headless Chromium
+npm start                   # then open http://localhost:3000
+```
+
+Upload with `git add -A && git commit && git push`, not the GitHub web uploader: the web uploader flattens folders and breaks the app.
+
 ## How to run it 🤔
 
 - `git clone https://github.com/AhmadIbrahiim/Website-downloader.git`

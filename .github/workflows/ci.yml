@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+    - run: npm ci
+    - name: Syntax check
+      run: |
+        for f in app.js bin/www socket/*.js wget/*.js browser/*.js archiver/*.js netguard/*.js cleanup/*.js routes/*.js; do node --check "$f"; done
+    - name: Start the server and request the home page
+      run: |
+        PORT=3100 node bin/www &
+        sleep 3
+        curl -fsS http://localhost:3100/ | grep -q "Website Downloader"
+        test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3100/does-not-exist)" = 404
