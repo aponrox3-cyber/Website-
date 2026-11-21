@@ -4,6 +4,9 @@
  * Module dependencies.
  */
 
+// Make sure node_modules is complete before anything else loads.
+require('../scripts/check-deps')();
+
 var app = require('../app');
 var debug = require('debug')('website-downloader:server');
 var http = require('http');

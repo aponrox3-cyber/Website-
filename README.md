@@ -52,6 +52,18 @@ npm start                   # then open http://localhost:3000
 
 Upload with `git add -A && git commit && git push`, not the GitHub web uploader: the web uploader flattens folders and breaks the app.
 
+### Troubleshooting
+
+**`Cannot find module 'hbs'` (or any other module)** means `npm install` did not finish. The app now checks this at startup and repairs it automatically. To do it by hand:
+
+```
+cd ~/Website-
+git pull
+rm -rf node_modules
+npm install
+npm start
+```
+
 ## How to run it 🤔
 
 - `git clone https://github.com/AhmadIbrahiim/Website-downloader.git`
