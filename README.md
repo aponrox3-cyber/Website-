@@ -118,3 +118,21 @@ Server-side code, databases and secrets cannot be copied by any downloader; POST
 | `CRAWL_MAX_QUERY_VARIANTS` | `20` | Max `?query` variants crawled per path (avoids endless calendars/filters) |
 | `CRAWL_PAGE_TIMEOUT_MS` | `60000` | Wait per page load |
 | `CRAWL_VENDOR_SOURCES` | `0` | `1` also extracts `node_modules` sources from source maps |
+
+
+## Website analysis report 🔎
+
+Every download is also analysed, so you get the full "how is this site built" picture, not only the files. The report appears on the page after the download, and is stored in the zip as `_analysis/report.html` (readable) and `_analysis/report.json` (for scripts).
+
+It covers:
+
+- **Technology stack** with versions where they can be read: JavaScript frameworks (React, Next.js, Vue, Nuxt, Angular, Svelte, Gatsby, Astro...), libraries, build tools (webpack, Vite), CSS frameworks, CMS / site builders / e-commerce (WordPress, Shopify, Wix, Webflow, Framer...), hosting and CDN (Cloudflare, Vercel, Netlify, CloudFront...), web server and back-end hints, analytics, payments, chat, maps and more
+- **Pages and structure**: every page with title, description, H1, word count, forms, structured data, plus internal routes and external links
+- **Assets**: size by type, largest files, and every other server the site loads from
+- **APIs and data**: endpoints named in the JavaScript and JSON data files the site loads
+- **Design**: most used colours, fonts, Google Fonts, CSS variables
+- **SEO and site files**: robots.txt, sitemap, favicon, manifest, missing titles/descriptions/alt text
+- **Response headers**: server, compression, cookie names (never values), security headers present or missing
+- **Original source structure**: folders, file types, config files and dependencies, when the site publishes source maps
+
+The analysis only reads what the server already sent to visitors; it sends no extra requests. The browser engine gives the richest report because it also records response headers and the live page's JavaScript. Server-side code, databases and secrets can never be seen by any tool. Online report copies are removed with the zips (`ZIP_TTL_MINUTES`).

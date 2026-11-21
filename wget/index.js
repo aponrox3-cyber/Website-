@@ -5,6 +5,7 @@ var path = require('path');
 var archive = require('../archiver');
 var browserEngine = require('../browser');
 var netguard = require('../netguard');
+var analyze = require('../analyzer');
 
 // DOWNLOAD_ENGINE: auto (default) = headless browser when it is installed, wget
 // otherwise; browser = browser only; wget = wget only.
@@ -16,6 +17,7 @@ var ENGINE = ['auto', 'browser', 'wget'].indexOf(process.env.DOWNLOAD_ENGINE) !=
  * keeps cleanup from ever reaching outside this folder.
  */
 var DOWNLOAD_ROOT = path.join(__dirname, '..', 'downloads');
+var SITES_DIR = path.join(__dirname, '..', 'public', 'sites');
 
 // wget mirrors recursively, so without a ceiling a single request can fill the
 // disk. Both limits can be raised through the environment.
@@ -153,15 +155,26 @@ module.exports = (socket, data, onFinished) => {
     }
 
     settled = true;
-    send({ progress: 'Converting' });
-
     var zipName = target.hostname.replace(/[^a-zA-Z0-9._-]/g, '_') + '-' + jobId;
+
+    // Work out how the site is built. A failure here must never lose the download.
+    send({ progress: 'Analyzing how the website is built' });
+    var summary = null;
+    var reportFile = zipName + '.report.html';
+    try {
+      summary = analyze(jobDir, target, { publicCopy: path.join(SITES_DIR, reportFile) }).summary;
+    } catch (err) {
+      console.error('Analysis failed: ' + err.message);
+      reportFile = null;
+    }
+
+    send({ progress: 'Converting' });
     archive(jobDir, zipName, (err, name) => {
       removeJobDir(jobDir);
       if (err) {
         send({ error: 'The site downloaded but could not be compressed: ' + err.message });
       } else {
-        send({ progress: 'Completed', file: name });
+        send({ progress: 'Completed', file: name, report: summary, reportFile: summary ? reportFile : null });
       }
       done();
     });

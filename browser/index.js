@@ -41,6 +41,48 @@ var MIME_EXT = {
   'text/plain': '.txt', 'application/xml': '.xml', 'text/xml': '.xml'
 };
 
+// Response headers worth keeping for the site analysis report.
+var KEEP_HEADERS = ['server', 'x-powered-by', 'content-type', 'content-encoding', 'cache-control',
+  'content-security-policy', 'strict-transport-security', 'x-frame-options', 'x-content-type-options',
+  'referrer-policy', 'permissions-policy', 'via', 'age', 'alt-svc', 'link', 'x-generator', 'x-cache',
+  'x-served-by', 'x-vercel-id', 'x-nf-request-id', 'cf-ray', 'x-amz-cf-id', 'x-github-request-id',
+  'x-aspnet-version', 'x-runtime', 'x-shopify-stage', 'x-wix-request-id', 'x-azure-ref', 'x-drupal-cache',
+  'x-pingback', 'x-firebase-hosting-version', 'x-litespeed-cache'];
+
+function pickHeaders(h) {
+  var out = {};
+  KEEP_HEADERS.forEach(function (k) { if (h[k]) out[k] = String(h[k]).slice(0, 300); });
+  if (h['set-cookie']) {
+    // cookie NAMES only, never values
+    out['set-cookie-names'] = String(h['set-cookie']).split(/\n/).map(function (c) { return c.split('=')[0].trim(); }).join(',');
+  }
+  return out;
+}
+
+// Runs inside the page: which frameworks and services are actually live.
+function collectRuntime() {
+  var w = window, r = {};
+  try {
+    var q = function (sel) { return document.querySelector(sel); };
+    r.jquery = (w.jQuery && w.jQuery.fn && w.jQuery.fn.jquery) || null;
+    var hook = w.__REACT_DEVTOOLS_GLOBAL_HOOK__, rv = null;
+    try { if (hook && hook.renderers && hook.renderers.size) rv = hook.renderers.values().next().value.version || true; } catch (e) { /* ignore */ }
+    r.react = !!(w.React || q('[data-reactroot]') || rv);
+    r.reactVersion = (w.React && w.React.version) || (typeof rv === 'string' ? rv : null);
+    r.vue = (w.Vue && w.Vue.version) || (w.__VUE__ || q('[data-v-app]') ? true : null);
+    var ng = q('[ng-version]'); r.angular = ng ? ng.getAttribute('ng-version') : null;
+    r.angularjs = !!(w.angular && w.angular.version);
+    r.next = !!w.__NEXT_DATA__; r.nuxt = !!(w.__NUXT__ || w.$nuxt); r.gatsby = !!w.___gatsby;
+    r.remix = !!w.__remixContext; r.shopify = !!w.Shopify;
+    r.ga = !!(w.ga || w.gtag); r.gtm = !!w.google_tag_manager; r.fbq = !!w.fbq; r.dataLayer = !!w.dataLayer;
+    r.generator = (q('meta[name=generator]') || {}).content || null;
+    r.themeColor = (q('meta[name=theme-color]') || {}).content || null;
+    r.lang = document.documentElement.lang || null;
+    r.doctype = document.doctype ? document.doctype.name : null;
+  } catch (e) { /* partial result is fine */ }
+  return r;
+}
+
 function loadPlaywright() {
   try { return require('playwright'); } catch (e) { /* try next */ }
   try { return require('playwright-chromium'); } catch (e) { /* none */ }
@@ -189,8 +231,10 @@ module.exports = function crawl(options) {
     var saved = new Set();      // urls already stored
     var partial = new Set();    // urls the browser only fetched in ranges (video/audio)
     var savedCount = 0;
+    var runtime = null;         // frameworks/services seen live on the first page
+    var cookieNames = [];
 
-    function save(url, body, contentType, forceHtml, folder) {
+    function save(url, body, contentType, forceHtml, folder, meta) {
       var u;
       try { u = new URL(url); } catch (e) { return; }
       var rel = relativeFileFor(u, contentType, forceHtml);
@@ -202,7 +246,8 @@ module.exports = function crawl(options) {
         catch (e2) { return; }
       }
       if (!folder) {
-        manifest[url] = { file: rel.split(path.sep).join('/'), type: contentType || '' };
+        manifest[url] = { file: rel.split(path.sep).join('/'), type: contentType || '',
+                          status: meta && meta.status, headers: meta && meta.headers };
         savedCount++;
         send({ progress: '200 OK  ' + url });
       }
@@ -219,7 +264,7 @@ module.exports = function crawl(options) {
         if (status < 200 || status >= 300 || status === 204) return;
         saved.add(url);
         var body = await res.body();
-        save(url, body, res.headers()['content-type']);
+        save(url, body, res.headers()['content-type'], false, null, { status: status, headers: pickHeaders(res.headers()) });
       } catch (e) { /* redirects and aborted requests have no body */ }
     });
 
@@ -234,7 +279,7 @@ module.exports = function crawl(options) {
         if (rejectHtml && /text\/html/i.test(res.headers()['content-type'] || '')) return null;
         saved.add(url);
         var body = await res.body();
-        save(url, body, res.headers()['content-type']);
+        save(url, body, res.headers()['content-type'], false, null, { status: res.status(), headers: pickHeaders(res.headers()) });
         return { body: body, type: res.headers()['content-type'] || '' };
       } catch (e) { return null; }
     }
@@ -335,6 +380,11 @@ module.exports = function crawl(options) {
       var finalUrl = page.url();
       if (/^https?:/i.test(finalUrl)) {
         seen.add(finalUrl);
+        if (!runtime) {
+          runtime = {};
+          runtime = await page.evaluate(collectRuntime).catch(function () { return {}; });
+          try { cookieNames = (await context.cookies()).map(function (c) { return c.name; }); } catch (e) { /* ignore */ }
+        }
         var html = await page.content();
         // The page after JavaScript ran, next to the untouched original.
         save(finalUrl, Buffer.from(html, 'utf8'), 'text/html', true, '_rendered');
@@ -416,6 +466,8 @@ module.exports = function crawl(options) {
       files: savedCount,
       pages: pagesDone,
       sourceFiles: sourceFiles,
+      runtime: runtime || {},
+      cookies: cookieNames,
       entries: manifest
     };
     fs.writeFileSync(path.join(dir, '_manifest.json'), JSON.stringify(info, null, 2));

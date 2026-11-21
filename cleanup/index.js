@@ -5,7 +5,7 @@ var ROOT = path.join(__dirname, '..');
 var DOWNLOADS = path.join(ROOT, 'downloads');
 var SITES = path.join(ROOT, 'public', 'sites');
 
-// Finished zips are removed after this many minutes so the disk cannot fill up.
+// Finished zips and their online reports are removed after this many minutes so the disk cannot fill up.
 var TTL_MS = (Number(process.env.ZIP_TTL_MINUTES) || 60) * 60 * 1000;
 
 /** Removes zips older than the time limit. */
@@ -13,7 +13,7 @@ function sweepZips() {
   fs.readdir(SITES, function (err, names) {
     if (err) return;
     names.forEach(function (name) {
-      if (!/\.zip$/i.test(name)) return;
+      if (!/\.(?:zip|report\.html)$/i.test(name)) return;
       var file = path.join(SITES, name);
       fs.stat(file, function (e, st) {
         if (!e && Date.now() - st.mtimeMs > TTL_MS) fs.unlink(file, function () {});

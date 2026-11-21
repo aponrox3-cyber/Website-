@@ -60,12 +60,15 @@
     if (typeof event.progress !== 'string') return;
 
     progressBar.hidden = false;
-    if (event.progress === 'Converting') {
+    if (event.progress === 'Analyzing how the website is built') {
+      log.textContent = 'Analyzing how the website is built...';
+    } else if (event.progress === 'Converting') {
       log.textContent = '100%! Compressing your website...';
     } else if (event.progress === 'Completed') {
       progressBar.hidden = true;
       log.textContent = 'Compressing completed successfully !';
       downloadWebsite.style.display = '';
+      showReport(event);
       downloadWebsite.onclick = function () {
         window.location = '/sites/' + encodeURIComponent(event.file) + '.zip';
       };
@@ -87,6 +90,42 @@
     if (downloadBtn.disabled) showError('Connection to the server was lost. Please try again.');
   });
 
+  // Shows what the analysis found. Everything is added with textContent because
+  // the values come from the website that was downloaded.
+  function showReport(event) {
+    const box = document.getElementById('report');
+    box.textContent = '';
+    if (!event.report) { box.hidden = true; return; }
+    const r = event.report;
+    const title = document.createElement('h4');
+    title.textContent = 'How this website is built';
+    const p = document.createElement('p');
+    p.textContent = r.headline;
+    box.appendChild(title);
+    box.appendChild(p);
+    const chips = document.createElement('div');
+    (r.technologies || []).forEach((t) => {
+      const c = document.createElement('span');
+      c.className = 'label label-info';
+      c.style.cssText = 'display:inline-block;margin:2px 3px;font-size:12px';
+      c.textContent = t.name + (t.version ? ' ' + t.version : '');
+      chips.appendChild(c);
+    });
+    box.appendChild(chips);
+    if (event.reportFile) {
+      const a = document.createElement('a');
+      a.href = '/sites/' + encodeURIComponent(event.reportFile);
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = 'Open the full report (pages, APIs, assets, SEO, design, source structure)';
+      const wrap = document.createElement('p');
+      wrap.style.marginTop = '10px';
+      wrap.appendChild(a);
+      box.appendChild(wrap);
+    }
+    box.hidden = false;
+  }
+
   function startDownload() {
     var website = websiteInput.value;
     if (!website.trim()) return;
@@ -95,6 +134,7 @@
     filesLine.hidden = true;
     log.textContent = '';
     downloadWebsite.style.display = 'none';
+    document.getElementById('report').hidden = true;
     downloadBtn.disabled = true;
     socket.emit('request', { token: token, website: website });
   }

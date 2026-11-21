@@ -16,7 +16,7 @@ jobs:
     - run: npm ci
     - name: Syntax check
       run: |
-        for f in app.js bin/www socket/*.js wget/*.js browser/*.js archiver/*.js netguard/*.js cleanup/*.js routes/*.js; do node --check "$f"; done
+        for f in app.js bin/www socket/*.js wget/*.js browser/*.js archiver/*.js netguard/*.js cleanup/*.js analyzer/*.js routes/*.js; do node --check "$f"; done
     - name: Start the server and request the home page
       run: |
         PORT=3100 node bin/www &
